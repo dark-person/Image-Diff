@@ -56,6 +56,20 @@ func (queue *ImagesQueue) Empty() bool {
 	return len(queue.image1_path) <= 0 || len(queue.image2_path) <= 0
 }
 
+func (queue *ImagesQueue) Clone() *ImagesQueue {
+
+	var dest1 []string
+	var dest2 []string
+
+	dest1 = append(dest1, queue.image1_path...)
+	dest2 = append(dest2, queue.image2_path...)
+
+	return &ImagesQueue{
+		image1_path: dest1,
+		image2_path: dest2,
+	}
+}
+
 func NewImagesQueue() *ImagesQueue {
 	return &ImagesQueue{
 		image1_path: make([]string, 0),

@@ -22,6 +22,7 @@ func main() {
 	fmt.Println("Hello world!")
 
 	queue := NewImagesQueue()
+	skipped_item := NewImagesQueue()
 
 	for i := 1; i <= 3; i++ {
 		path1, path2 := Test_Set(i)
@@ -49,30 +50,49 @@ func main() {
 	window := NewGuiWindow()
 	window.Update(NewGuiData(diff_check.GetInfo()))
 
-	window.Next_Set = func() (data GuiData, last bool) {
+	update := func() (data GuiData) {
 		current_index++
 		fmt.Println("Index: ", current_index)
 
 		diff_check.SetImages(queue.Get(current_index))
 		diff_check.Diff()
 
-		return NewGuiData(diff_check.GetInfo()), current_index >= queue.Capacity()-1
+		return NewGuiData(diff_check.GetInfo())
+	}
+
+	window.Next_Ontapped = func(perform_update bool) (data GuiData) {
+		skipped_item.Add(queue.Get(current_index))
+		if perform_update {
+			data = update()
+			return data
+		} else {
+			return data
+		}
+	}
+
+	window.Same_Ontapped = func() (data GuiData) {
+		path1, path2 := queue.Get(current_index)
+		//os.Remove(path1)
+		//os.Remove(path2)
+		fmt.Println("Renamed: ", path1, path2)
+
+		data = update()
+		return data
+	}
+
+	window.Different_Ontapped = func() (data GuiData) {
+		data = update()
+		return data
+	}
+
+	window.IsLastItem = func() bool {
+		return current_index >= queue.Capacity()-1
 	}
 
 	window.ShowAndRun()
-	// path1, path2 := Test_Set(3)
-	// diff_check.SetImages(path1, path2)
-	// diff_check.Diff()
 
-	// window := NewGuiWindow()
-
-	// go func() {
-	// 	time.Sleep(time.Second * 1)
-	// 	fmt.Println("Trigger Update")
-	// 	window.Update(NewGuiData(diff_check.GetInfo()))
-	// }()
-
-	// window.ShowAndRun()
+	// Cleanup
+	fmt.Println("Skipped:", skipped_item)
 
 	// diff_check.ClearData()
 }

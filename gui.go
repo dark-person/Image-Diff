@@ -35,8 +35,13 @@ type GuiWindow struct {
 	next_button                *widget.Button
 	button_container           *fyne.Container
 
-	Next_Set       func() (GuiData, bool) // function for setting next button
 	loading_dialog *dialog.ProgressInfiniteDialog
+	exit_dialog    dialog.Dialog
+
+	Next_Ontapped      func(perform_update bool) (data GuiData)
+	Same_Ontapped      func() GuiData
+	Different_Ontapped func() GuiData
+	IsLastItem         func() bool
 }
 
 func NewGuiWindow() *GuiWindow {
@@ -168,16 +173,33 @@ func NewGuiWindow() *GuiWindow {
 	loading_dialog := dialog.NewProgressInfinite("Loading", "Please wait until next image is loaded", w)
 	loading_dialog.Hide()
 
+	exit_dialog := dialog.NewInformation("Exiting", "That is Last Image. Program will terminate.", w)
+	exit_dialog.Hide()
+
+	exit_dialog.SetOnClosed(func() {
+		w.Close()
+	})
+
 	w.SetContent(content)
 	w.CenterOnScreen()
 
-	empty := func() (GuiData, bool) { // Dummy function
-		return NewGuiData("", "", "", "", "", "", "", ""), true
+	empty_data := func() GuiData { // Dummy function
+		return NewGuiData("", "", "", "", "", "", "", "")
+	}
+
+	empty_data2 := func(bool) GuiData { // Dummy function
+		return NewGuiData("", "", "", "", "", "", "", "")
+	}
+
+	empty_bool := func() bool { // Dummy function
+		return false
 	}
 
 	return &GuiWindow{w, tabs,
 		image1_fileinfo, image2_fileinfo, image1_canvas, image2_canvas, compare_jpg_canvas, animated_gif, button_restart_animate, cc,
-		same_image_button, different_image_button, next_button, button_area, empty, loading_dialog}
+		same_image_button, different_image_button, next_button, button_area,
+		loading_dialog, exit_dialog,
+		empty_data2, empty_data, empty_data, empty_bool}
 }
 
 // Update the gui by GuiData, also set up handler and refresh container
@@ -213,24 +235,67 @@ func (window *GuiWindow) Update(data GuiData) {
 
 	window.compare_animated_container.Refresh()
 
-	// Refresh the image area (tab)
-	window.tabs.Refresh()
-
 	// Button Handler setup
 	window.same_button.OnTapped = func() {
+		confirmCallback := func(confirm bool) {
+			if confirm {
+				window.loading_dialog.Show()
+				data := window.Same_Ontapped()
+				window.Update(data)
+				window.loading_dialog.Hide()
+			}
+		}
 
+		cnf := dialog.NewConfirm("Confirmation", "Are you sure to delete file: "+data.Image2_filepath+" ?", confirmCallback, window.window) // Image2 must be the image with smaller size
+		cnf.SetDismissText("No")
+		cnf.SetConfirmText("Yes")
+		cnf.Show()
+	}
+
+	window.different_button.OnTapped = func() {
+		window.loading_dialog.Show()
+		data := window.Different_Ontapped()
+		window.Update(data)
+		window.loading_dialog.Hide()
 	}
 
 	window.next_button.OnTapped = func() {
 		window.loading_dialog.Show()
-		//fmt.Println(window.Next_Set())
-		data, last := window.Next_Set()
-		if last {
-			window.next_button.Disable()
-		}
+		data := window.Next_Ontapped(true)
+
 		window.Update(data)
 		window.loading_dialog.Hide()
 	}
+
+	// Prevent Last Item Error
+	if window.IsLastItem() {
+		window.next_button.OnTapped = func() {
+			window.Next_Ontapped(false)
+			window.exit_dialog.Show()
+		}
+		window.next_button.SetText("Close Program")
+
+		window.different_button.OnTapped = func() { //Overwirte orignial function to prevent error
+			window.exit_dialog.Show()
+		}
+
+		window.same_button.OnTapped = func() {
+			confirmCallback := func(confirm bool) {
+				if confirm {
+					window.exit_dialog.Show()
+				}
+			}
+
+			cnf := dialog.NewConfirm("Confirmation", "Are you sure to delete file: "+data.Image2_filepath+" ?", confirmCallback, window.window) // Image2 must be the image with smaller size
+			cnf.SetDismissText("No")
+			cnf.SetConfirmText("Yes")
+			cnf.Show()
+		}
+	}
+
+	// Refresh the image area (tab) and button area
+	window.tabs.Refresh()
+	window.button_container.Refresh()
 }
 
 func (window *GuiWindow) ShowAndRun() {
