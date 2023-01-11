@@ -22,8 +22,8 @@ type ImageDiff struct {
 	processed_image2 string //Relative path to second image (Processed)
 	processed_size   image.Rectangle
 
-	diff_jpg_path     string // Difference with gray scale
-	filename_gif_path string // Gif of two filename
+	diff_jpg_path string // Difference with gray scale
+	diff_gif_path string // Gif of two filename
 
 	initialized    bool   // Security lock to check object validity
 	diff_directory string // Directory that store temporary image
@@ -47,8 +47,8 @@ func NewImageDiff() *ImageDiff {
 		processed_image2: "",
 		processed_size:   image.Rectangle{},
 
-		diff_jpg_path:     "",
-		filename_gif_path: "",
+		diff_jpg_path: "",
+		diff_gif_path: "",
 
 		initialized:    false,
 		diff_directory: "",
@@ -160,7 +160,7 @@ func (diff *ImageDiff) Diff() error {
 	if err != nil {
 		return err
 	}
-	diff.filename_gif_path = filename_gif_output
+	diff.diff_gif_path = filename_gif_output
 
 	// Jpg creation
 	jpg_output := filepath.Join(diff.diff_directory, "jpg_compare_"+time.Now().Format(time_format_string)+".jpg")
@@ -185,13 +185,17 @@ func (diff *ImageDiff) ClearData() {
 		os.Remove(diff.processed_image2)
 	}
 
+	// Remove the temporary files
+	os.RemoveAll(diff.diff_directory)
+	os.MkdirAll(diff.diff_directory, 0755)
+
 	diff.first_image_path = ""
 	diff.second_image_path = ""
 	diff.processed_image1 = ""
 	diff.processed_image2 = ""
 	diff.processed_size = image.Rectangle{}
 	diff.diff_jpg_path = ""
-	diff.filename_gif_path = ""
+	diff.diff_gif_path = ""
 }
 
 // Get the related path of diff image
@@ -209,7 +213,7 @@ func (diff *ImageDiff) GetDiffGif() (string, error) {
 		return "", Err_ImageDiff_Not_Initialized
 	}
 
-	return diff.filename_gif_path, nil
+	return diff.diff_gif_path, nil
 
 }
 
@@ -238,7 +242,7 @@ func (diff *ImageDiff) GetInfo() (larger_image_path, larger_processed_path, larg
 		smaller_processed_path = diff.processed_image1
 	}
 
-	return larger_image_path, larger_processed_path, larger_image_size, smaller_image_path, smaller_processed_path, smaller_image_size, diff.diff_jpg_path, diff.filename_gif_path
+	return larger_image_path, larger_processed_path, larger_image_size, smaller_image_path, smaller_processed_path, smaller_image_size, diff.diff_jpg_path, diff.diff_gif_path
 }
 
 // Helper function to create new diff gif

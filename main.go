@@ -71,10 +71,9 @@ func main() {
 	}
 
 	window.Same_Ontapped = func() (data GuiData) {
-		path1, path2 := queue.Get(current_index)
+		_, path2 := queue.Get(current_index)
 		//os.Remove(path1)
-		//os.Remove(path2)
-		fmt.Println("Renamed: ", path1, path2)
+		os.Remove(path2)
 
 		data = update()
 		return data
