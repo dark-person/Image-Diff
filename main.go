@@ -37,7 +37,7 @@ func main() {
 	// 	diff_check.ClearData()
 	// }
 
-	path1, path2 := Test_Set(2)
+	path1, path2 := Test_Set(3)
 	diff_check.SetImages(path1, path2)
 	diff_check.Diff()
 

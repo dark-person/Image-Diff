@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"fyne.io/fyne/v2"
@@ -17,33 +18,6 @@ import (
 
 var Default_Image_Size = fyne.NewSize(600, 600)
 
-type GuiData struct {
-	Image1_filepath string
-	Image2_filepath string
-
-	Processed1_filepath string
-	Processed2_filepath string
-
-	Compare_jpg_filepath string
-	Compare_gif_filepath string
-
-	Image1_size string
-	Image2_size string
-}
-
-func NewGuiData(original1, processed1, filesize1, original2, processed2, filesize2, compare_jpg, compare_gif string) GuiData {
-	return GuiData{
-		Image1_filepath:      original1,
-		Image2_filepath:      original2,
-		Processed1_filepath:  processed1,
-		Processed2_filepath:  processed2,
-		Compare_jpg_filepath: compare_jpg,
-		Compare_gif_filepath: compare_gif,
-		Image1_size:          filesize1,
-		Image2_size:          filesize2,
-	}
-}
-
 type GuiWindow struct {
 	window                     fyne.Window
 	tabs                       *container.AppTabs
@@ -53,6 +27,7 @@ type GuiWindow struct {
 	image2_canvas              *canvas.Image
 	compare_jpg_canvas         *canvas.Image
 	compare_gif_canvas         *widgetx.AnimatedGif
+	button_restart_animate     *widget.Button
 	compare_animated_container *fyne.Container
 	same_button                *widget.Button
 	different_button           *widget.Button
@@ -111,7 +86,11 @@ func NewGuiWindow() *GuiWindow {
 		compare_jpg_canvas,
 	)
 
-	cc := container.NewBorder(nil, nil, nil, nil, animated_gif)
+	button_restart_animate := widget.NewButton("Restart Again", func() {
+		fmt.Println("Button Not set function.")
+	})
+
+	cc := container.NewBorder(container.NewCenter(button_restart_animate), nil, nil, nil, animated_gif)
 
 	comparegifTab := container.NewTabItem(
 		"Animated",
@@ -151,6 +130,7 @@ func NewGuiWindow() *GuiWindow {
 	content := container.NewVBox(
 		title,
 		tabs,
+		widget.NewLabel(""), //Act as seperate space
 		button_area,
 	)
 
@@ -184,8 +164,7 @@ func NewGuiWindow() *GuiWindow {
 	w.CenterOnScreen()
 
 	return &GuiWindow{w, tabs,
-		image1_fileinfo, image2_fileinfo, image1_canvas, image2_canvas, compare_jpg_canvas,
-		animated_gif, cc,
+		image1_fileinfo, image2_fileinfo, image1_canvas, image2_canvas, compare_jpg_canvas, animated_gif, button_restart_animate, cc,
 		same_image_button, different_image_button, next_button, button_area}
 }
 
@@ -203,15 +182,23 @@ func (window *GuiWindow) Update(data GuiData) {
 	window.compare_jpg_canvas.File = data.Compare_jpg_filepath
 
 	// Gif image reset
-	window.compare_animated_container.RemoveAll()
+	window.compare_animated_container.Remove(window.compare_gif_canvas) // Remove the gif only
 	new_gif_canvas, err := widgetx.NewAnimatedGif(storage.NewFileURI(data.Compare_gif_filepath))
 	if err != nil {
 		panic(err)
 	}
 
-	window.compare_animated_container.RemoveAll()
 	window.compare_animated_container.Add(new_gif_canvas)
 	new_gif_canvas.Start()
+	window.compare_gif_canvas = new_gif_canvas
+
+	window.button_restart_animate.OnTapped = func() {
+		fmt.Println("Button restart pressed.")
+		new_gif_canvas.Start()
+	}
+
+	//window.button_restart_animate.Hide()
+
 	window.compare_animated_container.Refresh()
 
 	// Refresh the image area (tab)

@@ -33,6 +33,10 @@ var Err_ImageDiff_Not_Initialized = fmt.Errorf("imageDiff not initalised yet")
 
 const time_format_string = "20060102150405"
 
+const FILENAME_FONTSIZE_SMALL = 60
+const FILENAME_FONTSIZE_MEDIUM = 100
+const FILENAME_FONTSIZE_LARGE = 140
+
 // Create a new ImageDiff object
 func NewImageDiff() *ImageDiff {
 	return &ImageDiff{
@@ -243,14 +247,27 @@ func (diff *ImageDiff) output_filename_gif(processed_image1_path, processed_imag
 	temp_image1 := filepath.Join(diff.diff_directory, "filename1.jpg")
 	temp_image2 := filepath.Join(diff.diff_directory, "filename2.jpg")
 
+	// Check suitable size for filename font
+	fmt.Println("Size:", diff.processed_size.Dx())
+	fontsize := FILENAME_FONTSIZE_MEDIUM
+
+	if diff.processed_size.Dx() < 1500 {
+		fontsize = FILENAME_FONTSIZE_SMALL
+	}
+	fmt.Println("Font Size:", fontsize)
+
+	area_size := fontsize + 20
+
 	exec.Command("magick", processed_image1_path,
-		"-background", "black", "-fill", "white", "-pointsize", "80", "-size", strconv.Itoa(diff.processed_size.Dx())+"x100"+"!",
+		"-background", "black", "-fill", "white", "-pointsize", strconv.Itoa(fontsize),
+		"-size", strconv.Itoa(diff.processed_size.Dx())+"x"+strconv.Itoa(area_size)+"!",
 		"label:"+strings.TrimPrefix(filepath.Base(processed_image1_path), "temp_"), "+swap", "-gravity", "Center", "-append",
 		temp_image1).Output()
 	//fmt.Println(string(out1))
 
 	exec.Command("magick", processed_image2_path,
-		"-background", "black", "-fill", "white", "-pointsize", "80", "-size", strconv.Itoa(diff.processed_size.Dx())+"x100"+"!",
+		"-background", "black", "-fill", "white", "-pointsize", strconv.Itoa(fontsize),
+		"-size", strconv.Itoa(diff.processed_size.Dx())+"x"+strconv.Itoa(area_size)+"!",
 		"label:"+strings.TrimPrefix(filepath.Base(processed_image2_path), "temp_"), "+swap", "-gravity", "Center", "-append",
 		temp_image2).Output()
 	//fmt.Println(string(out2))
