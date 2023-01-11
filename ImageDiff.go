@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -19,9 +20,10 @@ type ImageDiff struct {
 
 	processed_image1 string //Relative path to first image (Processed)
 	processed_image2 string //Relative path to second image (Processed)
+	processed_size   image.Rectangle
 
-	diff_jpg_path string // Difference with gray scale
-	diff_gif_path string // Difference with animated GIF of two images
+	diff_jpg_path     string // Difference with gray scale
+	filename_gif_path string // Gif of two filename
 
 	initialized    bool   // Security lock to check object validity
 	diff_directory string // Directory that store temporary image
@@ -39,9 +41,10 @@ func NewImageDiff() *ImageDiff {
 
 		processed_image1: "",
 		processed_image2: "",
+		processed_size:   image.Rectangle{},
 
-		diff_jpg_path: "",
-		diff_gif_path: "",
+		diff_jpg_path:     "",
+		filename_gif_path: "",
 
 		initialized:    false,
 		diff_directory: "",
@@ -122,6 +125,8 @@ func (diff *ImageDiff) SetImages(image1_path string, image2_path string) error {
 		out, _ := cmd.Output()
 		log.Tracef(string(out) + "\n")
 
+		diff.processed_size = new_bound
+
 	} else {
 		diff.processed_image1 = diff.diff_directory + "/temp_" + filepath.Base(diff.first_image_path)
 		diff.processed_image2 = diff.second_image_path
@@ -131,6 +136,8 @@ func (diff *ImageDiff) SetImages(image1_path string, image2_path string) error {
 			diff.processed_image1)
 		out, _ := cmd.Output()
 		log.Tracef(string(out) + "\n")
+
+		diff.processed_size = new_bound
 
 	}
 
@@ -144,13 +151,12 @@ func (diff *ImageDiff) Diff() error {
 		return Err_ImageDiff_Not_Initialized
 	}
 
-	// Gif creation
-	gif_output := filepath.Join(diff.diff_directory, "gif_compare_"+time.Now().Format(time_format_string)+".gif")
-	err := output_diff_gif(diff.processed_image1, diff.processed_image2, gif_output)
+	filename_gif_output := filepath.Join(diff.diff_directory, "gif_filename_"+time.Now().Format(time_format_string)+".gif")
+	err := diff.output_filename_gif(diff.processed_image1, diff.processed_image2, filename_gif_output)
 	if err != nil {
 		return err
 	}
-	diff.diff_gif_path = gif_output
+	diff.filename_gif_path = filename_gif_output
 
 	// Jpg creation
 	jpg_output := filepath.Join(diff.diff_directory, "jpg_compare_"+time.Now().Format(time_format_string)+".jpg")
@@ -159,6 +165,12 @@ func (diff *ImageDiff) Diff() error {
 		return err
 	}
 	diff.diff_jpg_path = jpg_output
+
+	return nil
+}
+
+// Clear all image related data, allow the next comparison of other images
+func (diff *ImageDiff) ClearData() {
 
 	// Remove the temporary files
 	if strings.Contains(diff.processed_image1, "temp_") {
@@ -169,18 +181,13 @@ func (diff *ImageDiff) Diff() error {
 		os.Remove(diff.processed_image2)
 	}
 
-	return nil
-}
-
-// Clear all image related data, allow the next comparison of other images
-func (diff *ImageDiff) ClearData() {
-
 	diff.first_image_path = ""
 	diff.second_image_path = ""
 	diff.processed_image1 = ""
 	diff.processed_image2 = ""
-	diff.diff_gif_path = ""
+	diff.processed_size = image.Rectangle{}
 	diff.diff_jpg_path = ""
+	diff.filename_gif_path = ""
 }
 
 // Get the related path of diff image
@@ -198,29 +205,69 @@ func (diff *ImageDiff) GetDiffGif() (string, error) {
 		return "", Err_ImageDiff_Not_Initialized
 	}
 
-	return diff.diff_gif_path, nil
+	return diff.filename_gif_path, nil
 
 }
 
 // Get all needed information for data storing/processing
-func (diff *ImageDiff) GetInfo() (first_image_path, second_image_path, diff_jpg, diff_gif string) {
-	return diff.first_image_path, diff.second_image_path, diff.diff_jpg_path, diff.diff_gif_path
+func (diff *ImageDiff) GetInfo() (larger_image_path, larger_processed_path, larger_image_size, smaller_image_path, smaller_processed_path, smaller_image_size, diff_jpg, diff_gif string) {
+
+	// Compare the filesize of two image, mark the smaller image to info
+	file1, _ := os.Stat(diff.first_image_path)
+	file2, _ := os.Stat(diff.second_image_path)
+
+	if file1.Size() >= file2.Size() {
+		larger_image_path = diff.first_image_path
+		larger_image_size = humanize.Bytes(uint64(file1.Size()))
+		larger_processed_path = diff.processed_image1
+
+		smaller_image_path = diff.second_image_path
+		smaller_image_size = humanize.Bytes(uint64(file2.Size()))
+		smaller_processed_path = diff.processed_image2
+	} else {
+		larger_image_path = diff.second_image_path
+		larger_image_size = humanize.Bytes(uint64(file2.Size()))
+		larger_processed_path = diff.processed_image2
+
+		smaller_image_path = diff.first_image_path
+		smaller_image_size = humanize.Bytes(uint64(file1.Size()))
+		smaller_processed_path = diff.processed_image1
+	}
+
+	return larger_image_path, larger_processed_path, larger_image_size, smaller_image_path, smaller_processed_path, smaller_image_size, diff.diff_jpg_path, diff.filename_gif_path
 }
 
 // Helper function to create new diff gif
-func output_diff_gif(first_image_path, second_image_path string, output_image_path string) error {
-	// Run command
-	cmd := exec.Command("magick", "-delay", "50", first_image_path, second_image_path, "-loop", "0", output_image_path)
+func (diff *ImageDiff) output_filename_gif(processed_image1_path, processed_image2_path, output_image_path string) error {
+	// Generate two temp image of filename first
+	temp_image1 := filepath.Join(diff.diff_directory, "filename1.jpg")
+	temp_image2 := filepath.Join(diff.diff_directory, "filename2.jpg")
 
-	log.Debugf("Start Generating gif..\n")
+	exec.Command("magick", processed_image1_path,
+		"-background", "black", "-fill", "white", "-pointsize", "80", "-size", strconv.Itoa(diff.processed_size.Dx())+"x100"+"!",
+		"label:"+strings.TrimPrefix(filepath.Base(processed_image1_path), "temp_"), "+swap", "-gravity", "Center", "-append",
+		temp_image1).Output()
+	//fmt.Println(string(out1))
+
+	exec.Command("magick", processed_image2_path,
+		"-background", "black", "-fill", "white", "-pointsize", "80", "-size", strconv.Itoa(diff.processed_size.Dx())+"x100"+"!",
+		"label:"+strings.TrimPrefix(filepath.Base(processed_image2_path), "temp_"), "+swap", "-gravity", "Center", "-append",
+		temp_image2).Output()
+	//fmt.Println(string(out2))
+
+	// Run command
+	cmd := exec.Command("magick", "-delay", "100", temp_image1, temp_image2, "-loop", "0", output_image_path)
+
+	log.Debugf("Start Generating filename gif..\n")
 	out, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("command of generate gif failed: %v", err)
+		return fmt.Errorf("command of generate filename gif failed: %v", err)
 	}
 	log.Tracef(string(out) + "\n")
 
 	log.Debugf("Command run successfully.\n")
-
+	//os.Remove(temp_image1)
+	//os.Remove(temp_image2)
 	return nil
 }
 
