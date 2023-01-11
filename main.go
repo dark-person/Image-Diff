@@ -7,11 +7,11 @@ import (
 
 func Test_Set(set_number int) (string, string) {
 	switch set_number {
-	case 3:
+	case 1:
 		return "test_set\\blue gk_1672650631.png", "test_set\\blue gk_1672650653.png"
 	case 2:
 		return "test_set\\an yasuri_1672722083_faceleft.png", "test_set\\an yasuri_1672922692_faceright.jpg"
-	case 1:
+	case 3:
 		return "test_set\\akie (44265104)_1672682033.png", "test_set\\akie (44265104)_1673037743.jpg"
 	}
 	return "", ""
@@ -41,6 +41,7 @@ func main() {
 		fmt.Println("Image Magick is not installed.", err)
 		os.Exit(1)
 	}
+	defer diff_check.Terminate()
 
 	// Start Gui with first item in queue
 	current_index := 0
@@ -56,6 +57,10 @@ func main() {
 
 		diff_check.SetImages(queue.Get(current_index))
 		diff_check.Diff()
+
+		// v1, v2, v3, v4, v5, v6, v7, v8 := diff_check.GetInfo()
+		// fmt.Println("Update Callback 1: {", v1, v2, v3, v4, v5, v6, v7, v8, "}")
+		// fmt.Printf("Update Callback2 : %v\n", NewGuiData(diff_check.GetInfo()))
 
 		return NewGuiData(diff_check.GetInfo())
 	}
@@ -81,6 +86,7 @@ func main() {
 
 	window.Different_Ontapped = func() (data GuiData) {
 		data = update()
+		// fmt.Printf("Different Callback : %s\n", data)
 		return data
 	}
 
@@ -92,6 +98,4 @@ func main() {
 
 	// Cleanup
 	fmt.Println("Skipped:", skipped_item)
-
-	// diff_check.ClearData()
 }

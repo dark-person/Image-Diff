@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -155,22 +156,44 @@ func (diff *ImageDiff) Diff() error {
 		return Err_ImageDiff_Not_Initialized
 	}
 
-	filename_gif_output := filepath.Join(diff.diff_directory, "gif_filename_"+time.Now().Format(time_format_string)+".gif")
-	err := diff.output_filename_gif(diff.processed_image1, diff.processed_image2, filename_gif_output)
-	if err != nil {
-		return err
-	}
-	diff.diff_gif_path = filename_gif_output
+	var wg sync.WaitGroup
+	err_channel := make(chan error, 2)
 
-	// Jpg creation
-	jpg_output := filepath.Join(diff.diff_directory, "jpg_compare_"+time.Now().Format(time_format_string)+".jpg")
-	err = output_diff_jpg(diff.processed_image1, diff.processed_image2, jpg_output)
-	if err != nil {
-		return err
-	}
-	diff.diff_jpg_path = jpg_output
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 
-	return nil
+		// Gif Creation
+		filename_gif_output := filepath.Join(diff.diff_directory, "gif_filename_"+time.Now().Format(time_format_string)+".gif")
+		err := diff.output_filename_gif(diff.processed_image1, diff.processed_image2, filename_gif_output)
+		diff.diff_gif_path = filename_gif_output
+
+		err_channel <- err
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		// Jpg creation
+		jpg_output := filepath.Join(diff.diff_directory, "jpg_compare_"+time.Now().Format(time_format_string)+".jpg")
+		err := output_diff_jpg(diff.processed_image1, diff.processed_image2, jpg_output)
+		diff.diff_jpg_path = jpg_output
+
+		err_channel <- err
+	}()
+
+	var err error
+	err = nil
+	for i := 0; i < 2; i++ {
+		temp := <-err_channel
+		if temp != nil {
+			err = temp
+		}
+	}
+
+	wg.Wait()
+	return err
 }
 
 // Clear all image related data, allow the next comparison of other images
@@ -185,10 +208,6 @@ func (diff *ImageDiff) ClearData() {
 		os.Remove(diff.processed_image2)
 	}
 
-	// Remove the temporary files
-	os.RemoveAll(diff.diff_directory)
-	os.MkdirAll(diff.diff_directory, 0755)
-
 	diff.first_image_path = ""
 	diff.second_image_path = ""
 	diff.processed_image1 = ""
@@ -196,6 +215,10 @@ func (diff *ImageDiff) ClearData() {
 	diff.processed_size = image.Rectangle{}
 	diff.diff_jpg_path = ""
 	diff.diff_gif_path = ""
+}
+
+func (diff *ImageDiff) Terminate() {
+	os.RemoveAll(diff.diff_directory)
 }
 
 // Get the related path of diff image
@@ -221,8 +244,12 @@ func (diff *ImageDiff) GetDiffGif() (string, error) {
 func (diff *ImageDiff) GetInfo() (larger_image_path, larger_processed_path, larger_image_size, smaller_image_path, smaller_processed_path, smaller_image_size, diff_jpg, diff_gif string) {
 
 	// Compare the filesize of two image, mark the smaller image to info
-	file1, _ := os.Stat(diff.first_image_path)
-	file2, _ := os.Stat(diff.second_image_path)
+	file1, err1 := os.Stat(diff.first_image_path)
+	file2, err2 := os.Stat(diff.second_image_path)
+
+	if err1 != nil || err2 != nil {
+		return diff.first_image_path, "", "0 B", diff.second_image_path, "", "0 B", "", ""
+	}
 
 	if file1.Size() >= file2.Size() {
 		larger_image_path = diff.first_image_path
@@ -287,8 +314,8 @@ func (diff *ImageDiff) output_filename_gif(processed_image1_path, processed_imag
 	log.Tracef(string(out) + "\n")
 
 	log.Debugf("Command run successfully.\n")
-	//os.Remove(temp_image1)
-	//os.Remove(temp_image2)
+	go os.Remove(temp_image1)
+	go os.Remove(temp_image2)
 	return nil
 }
 

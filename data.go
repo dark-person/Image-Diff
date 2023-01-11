@@ -28,6 +28,10 @@ func NewGuiData(original1, processed1, filesize1, original2, processed2, filesiz
 	}
 }
 
+func (data *GuiData) Valid() bool {
+	return data.Processed1_filepath != "" && data.Processed2_filepath != ""
+}
+
 type ImagesQueue struct {
 	// An array of GuiData objects
 	image1_path []string

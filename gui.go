@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"path/filepath"
 
 	"fyne.io/fyne/v2"
@@ -42,6 +43,8 @@ type GuiWindow struct {
 	Same_Ontapped      func() GuiData
 	Different_Ontapped func() GuiData
 	IsLastItem         func() bool
+
+	Exception_Handler func(message string)
 }
 
 func NewGuiWindow() *GuiWindow {
@@ -180,6 +183,26 @@ func NewGuiWindow() *GuiWindow {
 		w.Close()
 	})
 
+	// Set up error when exception
+	exception_handler := func(message string) {
+		fmt.Println("Critial Error Occur.")
+		w.SetContent(container.NewCenter(
+			container.NewVBox(
+				container.NewCenter(widget.NewLabel("Error Occur.\n"+message)),
+				container.NewCenter(container.NewHBox(
+					widget.NewButton("Copy Error Message", func() {
+						w.Clipboard().SetContent(message)
+					}),
+					widget.NewButton("Close", func() {
+						w.Close()
+					}),
+				)),
+			),
+		))
+		w.Resize(fyne.NewSize(200, 200))
+		w.CenterOnScreen()
+	}
+
 	w.SetContent(content)
 	w.CenterOnScreen()
 
@@ -199,7 +222,8 @@ func NewGuiWindow() *GuiWindow {
 		image1_fileinfo, image2_fileinfo, image1_canvas, image2_canvas, compare_jpg_canvas, animated_gif, button_restart_animate, cc,
 		same_image_button, different_image_button, next_button, button_area,
 		loading_dialog, exit_dialog,
-		empty_data2, empty_data, empty_data, empty_bool}
+		empty_data2, empty_data, empty_data, empty_bool,
+		exception_handler}
 }
 
 // Update the gui by GuiData, also set up handler and refresh container
@@ -218,20 +242,21 @@ func (window *GuiWindow) Update(data GuiData) {
 	// Gif image reset
 	window.compare_animated_container.Remove(window.compare_gif_canvas) // Remove the gif only
 	new_gif_canvas, err := widgetx.NewAnimatedGif(storage.NewFileURI(data.Compare_gif_filepath))
-	if err != nil {
-		panic(err)
-	}
 
 	window.compare_animated_container.Add(new_gif_canvas)
-	new_gif_canvas.Start()
+	if err == nil {
+		new_gif_canvas.Start() //Only Start animation if not error
+	} else {
+		log.Printf("Error: %v, target: %s\n", err, data)
+		window.Exception_Handler(
+			fmt.Sprintf("%v.\n\nImage Error: %s\n\nImage Original:\n%s, \n%s\n", err, data.Compare_gif_filepath, data.Image1_filepath, data.Image2_filepath))
+	}
 	window.compare_gif_canvas = new_gif_canvas
 
 	window.button_restart_animate.OnTapped = func() {
 		fmt.Println("Button restart pressed.")
 		new_gif_canvas.Start()
 	}
-
-	//window.button_restart_animate.Hide()
 
 	window.compare_animated_container.Refresh()
 
@@ -300,130 +325,4 @@ func (window *GuiWindow) Update(data GuiData) {
 
 func (window *GuiWindow) ShowAndRun() {
 	window.window.ShowAndRun()
-}
-
-func WindowConstruct(data GuiData) fyne.Window {
-
-	image1 := data.Image1_filepath
-	image2 := data.Image2_filepath
-	compare_jpg := data.Compare_jpg_filepath
-	compare_gif := data.Compare_gif_filepath
-
-	a := app.New()
-	w := a.NewWindow("Hello World") // Due to set fixed size has bug, not change this
-
-	// Title
-	title := widget.NewLabel("Check Image Different")
-	title.Alignment = fyne.TextAlignCenter
-	title.TextStyle.Bold = true
-
-	// Original Image 1
-	image1_canvas := canvas.NewImageFromFile(image1)
-	image1_canvas.FillMode = canvas.ImageFillContain
-	image1_canvas.SetMinSize(Default_Image_Size)
-
-	image1_filename := widget.NewLabel(filepath.Base(image1))
-	image1_filename.Alignment = fyne.TextAlignCenter
-
-	// Original Image 2
-	image2_canvas := canvas.NewImageFromFile(image2)
-	image2_canvas.FillMode = canvas.ImageFillContain
-	image2_canvas.SetMinSize(Default_Image_Size)
-
-	image2_filename := widget.NewLabel(filepath.Base(image2))
-	image2_filename.Alignment = fyne.TextAlignCenter
-
-	// Compare Image by Gif
-	animated_gif, err := widgetx.NewAnimatedGif(storage.NewFileURI(compare_gif))
-	animated_gif.Start()
-	if err != nil {
-		panic(err)
-	}
-
-	// Comapre Image by Jpg
-	compare_jpg_canvas := canvas.NewImageFromFile(compare_jpg)
-	compare_jpg_canvas.FillMode = canvas.ImageFillContain
-	compare_jpg_canvas.SetMinSize(Default_Image_Size)
-
-	// Tabs
-	originalTab := container.NewTabItem(
-		"Original Image Compare",
-		container.NewCenter(container.NewHBox(
-			container.NewVBox(image1_filename, image1_canvas),
-			container.NewVBox(image2_filename, image2_canvas),
-		)),
-	)
-
-	comparejpgTab := container.NewTabItem(
-		"Difference",
-		compare_jpg_canvas,
-	)
-
-	comparegifTab := container.NewTabItem(
-		"Animated",
-		animated_gif,
-	)
-
-	tabs := container.NewAppTabs(
-		originalTab, comparejpgTab, comparegifTab,
-	)
-	tabs.Select(comparejpgTab)
-
-	// Buttons Field
-	next_button := widget.NewButton("Next Set", func() {
-
-	})
-	next_button.Importance = widget.WarningImportance
-
-	same_image_button := widget.NewButton("They are Same, Delete image with smaller size", func() {
-
-	})
-	same_image_button.Importance = widget.DangerImportance
-
-	different_image_button := widget.NewButton("They are Different, Keep Both", func() {
-
-	})
-
-	// Layout
-	content := container.NewVBox(
-		title,
-		tabs,
-		container.NewCenter(
-			container.NewVBox(
-				same_image_button,
-				different_image_button,
-			)),
-		container.NewBorder(nil, nil, nil, next_button),
-	)
-
-	// Key Binding
-	w.Canvas().SetOnTypedKey(func(ke *fyne.KeyEvent) {
-		if ke.Physical.ScanCode == 331 { // Lef arrow key pressed
-			current_index := tabs.SelectedIndex()
-			if current_index == 0 {
-				current_index = len(tabs.Items) - 1
-			} else {
-				current_index--
-			}
-			//fmt.Println(current_index)
-			tabs.SelectIndex(current_index)
-			return
-		}
-
-		if ke.Physical.ScanCode == 333 { // Right Arrow Key Pressed
-			current_index := tabs.SelectedIndex()
-			if current_index == len(tabs.Items)-1 {
-				current_index = 0
-			} else {
-				current_index++
-			}
-			tabs.SelectIndex(current_index)
-			return
-		}
-	})
-
-	w.SetContent(content)
-	w.ShowAndRun()
-
-	return w
 }
