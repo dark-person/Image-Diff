@@ -48,8 +48,18 @@ func main() {
 
 	window := NewGuiWindow()
 	window.Update(NewGuiData(diff_check.GetInfo()))
-	window.ShowAndRun()
 
+	window.Next_Set = func() (data GuiData, last bool) {
+		current_index++
+		fmt.Println("Index: ", current_index)
+
+		diff_check.SetImages(queue.Get(current_index))
+		diff_check.Diff()
+
+		return NewGuiData(diff_check.GetInfo()), current_index >= queue.Capacity()-1
+	}
+
+	window.ShowAndRun()
 	// path1, path2 := Test_Set(3)
 	// diff_check.SetImages(path1, path2)
 	// diff_check.Diff()

@@ -34,6 +34,10 @@ type ImagesQueue struct {
 	image2_path []string
 }
 
+func (queue *ImagesQueue) Capacity() int {
+	return len(queue.image1_path)
+}
+
 func (queue *ImagesQueue) Get(index int) (path1, path2 string) {
 	return queue.image1_path[index], queue.image2_path[index]
 }
