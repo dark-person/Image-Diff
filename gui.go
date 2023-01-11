@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/widget"
 
@@ -34,7 +35,8 @@ type GuiWindow struct {
 	next_button                *widget.Button
 	button_container           *fyne.Container
 
-	Next_Set func() (GuiData, bool) // function for setting next button
+	Next_Set       func() (GuiData, bool) // function for setting next button
+	loading_dialog *dialog.ProgressInfiniteDialog
 }
 
 func NewGuiWindow() *GuiWindow {
@@ -162,6 +164,10 @@ func NewGuiWindow() *GuiWindow {
 		}
 	})
 
+	// Loading Dialog
+	loading_dialog := dialog.NewProgressInfinite("Loading", "Please wait until next image is loaded", w)
+	loading_dialog.Hide()
+
 	w.SetContent(content)
 	w.CenterOnScreen()
 
@@ -171,7 +177,7 @@ func NewGuiWindow() *GuiWindow {
 
 	return &GuiWindow{w, tabs,
 		image1_fileinfo, image2_fileinfo, image1_canvas, image2_canvas, compare_jpg_canvas, animated_gif, button_restart_animate, cc,
-		same_image_button, different_image_button, next_button, button_area, empty}
+		same_image_button, different_image_button, next_button, button_area, empty, loading_dialog}
 }
 
 // Update the gui by GuiData, also set up handler and refresh container
@@ -216,12 +222,14 @@ func (window *GuiWindow) Update(data GuiData) {
 	}
 
 	window.next_button.OnTapped = func() {
+		window.loading_dialog.Show()
 		//fmt.Println(window.Next_Set())
 		data, last := window.Next_Set()
 		if last {
 			window.next_button.Disable()
 		}
 		window.Update(data)
+		window.loading_dialog.Hide()
 	}
 }
 
