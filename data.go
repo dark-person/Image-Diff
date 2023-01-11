@@ -28,29 +28,38 @@ func NewGuiData(original1, processed1, filesize1, original2, processed2, filesiz
 	}
 }
 
-type GuiDataSet struct {
+type ImagesQueue struct {
 	// An array of GuiData objects
-	data []*GuiData
+	image1_path []string
+	image2_path []string
 }
 
-func (data *GuiDataSet) Get(index int) *GuiData {
-	return data.data[index]
+func (queue *ImagesQueue) Get(index int) (path1, path2 string) {
+	return queue.image1_path[index], queue.image2_path[index]
 }
 
-func (data *GuiDataSet) Add(item *GuiData) {
-	data.data = append(data.data, item)
+func (queue *ImagesQueue) Add(path1, path2 string) {
+	queue.image1_path = append(queue.image1_path, path1)
+	queue.image2_path = append(queue.image2_path, path2)
 }
 
-func (data *GuiDataSet) AddMultiple(items []*GuiData) {
-	data.data = append(data.data, items...)
+func (queue *ImagesQueue) Remove(index int) {
+	queue.image1_path = append(queue.image1_path[:index], queue.image2_path[:index]...)
+	queue.image2_path = append(queue.image2_path[:index], queue.image2_path[:index]...)
 }
 
-func (data *GuiDataSet) Remove(index int) *GuiData {
-	temp := data.data[index]
-	data.data = append(data.data[:index], data.data[index+1:]...)
-	return temp
+func (queue *ImagesQueue) Empty() bool {
+	return len(queue.image1_path) <= 0 || len(queue.image2_path) <= 0
 }
 
-func NewGuiDataSetByFile(filepath string) *GuiDataSet {
-	return &GuiDataSet{}
+func NewImagesQueue() *ImagesQueue {
+	return &ImagesQueue{
+		image1_path: make([]string, 0),
+		image2_path: make([]string, 0),
+	}
+}
+
+// Not Implmented
+func NewImagesQueueByFile(filepath string) *ImagesQueue {
+	return &ImagesQueue{}
 }

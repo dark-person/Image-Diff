@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"time"
 )
 
 func Test_Set(set_number int) (string, string) {
@@ -22,6 +21,18 @@ func Test_Set(set_number int) (string, string) {
 func main() {
 	fmt.Println("Hello world!")
 
+	queue := NewImagesQueue()
+
+	for i := 1; i <= 3; i++ {
+		path1, path2 := Test_Set(i)
+		queue.Add(path1, path2)
+	}
+
+	if queue.Empty() {
+		os.Exit(135)
+	}
+
+	// Diff checker Init
 	diff_check := NewImageDiff()
 	diff_check.SetDiffImageDir("Temp")
 	err := diff_check.Init()
@@ -30,26 +41,28 @@ func main() {
 		os.Exit(1)
 	}
 
-	// for i := 1; i <= 3; i++ {
-	// 	path1, path2 := Test_Set(i)
-	// 	diff_check.SetImages(path1, path2)
-	// 	diff_check.Diff()
-	// 	diff_check.ClearData()
-	// }
-
-	path1, path2 := Test_Set(3)
-	diff_check.SetImages(path1, path2)
+	// Start Gui with first item in queue
+	current_index := 0
+	diff_check.SetImages(queue.Get(current_index))
 	diff_check.Diff()
 
 	window := NewGuiWindow()
-
-	go func() {
-		time.Sleep(time.Second * 1)
-		fmt.Println("Trigger Update")
-		window.Update(NewGuiData(diff_check.GetInfo()))
-	}()
-
+	window.Update(NewGuiData(diff_check.GetInfo()))
 	window.ShowAndRun()
+
+	// path1, path2 := Test_Set(3)
+	// diff_check.SetImages(path1, path2)
+	// diff_check.Diff()
+
+	// window := NewGuiWindow()
+
+	// go func() {
+	// 	time.Sleep(time.Second * 1)
+	// 	fmt.Println("Trigger Update")
+	// 	window.Update(NewGuiData(diff_check.GetInfo()))
+	// }()
+
+	// window.ShowAndRun()
 
 	// diff_check.ClearData()
 }
