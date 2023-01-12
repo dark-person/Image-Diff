@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"strconv"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -31,17 +32,19 @@ type GuiWindow struct {
 	compare_gif_canvas         *widgetx.AnimatedGif
 	button_restart_animate     *widget.Button
 	compare_animated_container *fyne.Container
-	same_button                *widget.Button
-	different_button           *widget.Button
-	next_button                *widget.Button
-	button_container           *fyne.Container
+
+	same_button      *widget.Button
+	different_button *widget.Button
+	next_button      *widget.Button
+	button_container *fyne.Container
+	remaining_label  *widget.Label
 
 	loading_dialog *dialog.ProgressInfiniteDialog
 	exit_dialog    dialog.Dialog
 
-	Next_Ontapped      func(perform_update bool) (data GuiData)
-	Same_Ontapped      func() GuiData
-	Different_Ontapped func() GuiData
+	Next_Ontapped      func(perform_update bool) (data GuiData, remain int)
+	Same_Ontapped      func() (data GuiData, remain int)
+	Different_Ontapped func() (data GuiData, remain int)
 	IsLastItem         func() bool
 
 	Exception_Handler func(message string)
@@ -130,13 +133,19 @@ func NewGuiWindow() *GuiWindow {
 
 	})
 
+	remaining_label := widget.NewLabel("Remaining: ")
+
+	close_program_button := widget.NewButton("Close Program", func() {
+		w.Close()
+	})
+
 	button_area := container.NewVBox(
 		container.NewCenter(
 			container.NewVBox(
 				same_image_button,
 				different_image_button,
 			)),
-		container.NewBorder(nil, nil, nil, next_button),
+		container.NewBorder(nil, nil, close_program_button, next_button, remaining_label),
 	)
 
 	// Layout
@@ -213,12 +222,12 @@ func NewGuiWindow() *GuiWindow {
 	w.SetContent(content)
 	w.CenterOnScreen()
 
-	empty_data := func() GuiData { // Dummy function
-		return NewGuiData("", "", "", "", "", "", "", "")
+	empty_data := func() (data GuiData, remain int) { // Dummy function
+		return NewGuiData("", "", "", "", "", "", "", ""), 0
 	}
 
-	empty_data2 := func(bool) GuiData { // Dummy function
-		return NewGuiData("", "", "", "", "", "", "", "")
+	empty_data2 := func(bool) (data GuiData, remain int) { // Dummy function
+		return NewGuiData("", "", "", "", "", "", "", ""), 0
 	}
 
 	empty_bool := func() bool { // Dummy function
@@ -227,14 +236,16 @@ func NewGuiWindow() *GuiWindow {
 
 	return &GuiWindow{w, tabs,
 		image1_fileinfo, image2_fileinfo, image1_canvas, image2_canvas, compare_jpg_canvas, animated_gif, button_restart_animate, cc,
-		same_image_button, different_image_button, next_button, button_area,
+		same_image_button, different_image_button, next_button, button_area, remaining_label,
 		loading_dialog, exit_dialog,
 		empty_data2, empty_data, empty_data, empty_bool,
 		exception_handler, try_next_button}
 }
 
 // Update the gui by GuiData, also set up handler and refresh container
-func (window *GuiWindow) Update(data GuiData) {
+func (window *GuiWindow) Update(data GuiData, remain_count int) {
+	window.remaining_label.SetText("Remaining: " + strconv.Itoa(remain_count))
+
 	window.image1_canvas.File = data.Image1_filepath
 
 	window.image2_canvas.File = data.Image2_filepath
@@ -259,9 +270,12 @@ func (window *GuiWindow) Update(data GuiData) {
 		window.Try_Next_button.OnTapped = func() {
 			window.loading_dialog.Show()
 			window.window.SetContent(original_content) // Recover the window structure
-			data := window.Different_Ontapped()        // Use Different to not remain record to skipped item
-			window.Update(data)
+			window.window.CenterOnScreen()
+
+			data, remain := window.Different_Ontapped() // Use Different to not remain record to skipped item
+			window.Update(data, remain)
 			window.loading_dialog.Hide()
+
 		}
 		window.Exception_Handler(
 			fmt.Sprintf("%v.\n\nImage Error: %s\n\nImage Original:\n%s, \n%s\n", err, data.Compare_gif_filepath, data.Image1_filepath, data.Image2_filepath))
@@ -281,8 +295,9 @@ func (window *GuiWindow) Update(data GuiData) {
 		confirmCallback := func(confirm bool) {
 			if confirm {
 				window.loading_dialog.Show()
-				data := window.Same_Ontapped()
-				window.Update(data)
+				data, remain := window.Same_Ontapped()
+				window.Update(data, remain)
+				window.remaining_label.SetText("Remaining: " + strconv.Itoa(remain))
 				window.loading_dialog.Hide()
 			}
 		}
@@ -295,16 +310,18 @@ func (window *GuiWindow) Update(data GuiData) {
 
 	window.different_button.OnTapped = func() {
 		window.loading_dialog.Show()
-		data := window.Different_Ontapped()
-		window.Update(data)
+		data, remain := window.Different_Ontapped()
+		window.Update(data, remain)
+		window.remaining_label.SetText("Remaining: " + strconv.Itoa(remain))
 		window.loading_dialog.Hide()
 	}
 
 	window.next_button.OnTapped = func() {
 		window.loading_dialog.Show()
-		data := window.Next_Ontapped(true)
+		data, remain := window.Next_Ontapped(true)
 
-		window.Update(data)
+		window.Update(data, remain)
+		window.remaining_label.SetText("Remaining: " + strconv.Itoa(remain))
 		window.loading_dialog.Hide()
 	}
 

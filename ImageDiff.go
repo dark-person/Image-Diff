@@ -34,9 +34,11 @@ var Err_ImageDiff_Not_Initialized = fmt.Errorf("imageDiff not initalised yet")
 
 const time_format_string = "20060102150405"
 
+const FILENAME_FONTSIZE_EXTRA_SMALL = 40
 const FILENAME_FONTSIZE_SMALL = 60
 const FILENAME_FONTSIZE_MEDIUM = 100
 const FILENAME_FONTSIZE_LARGE = 140
+const FILENAME_FONTSIZE_EXTRA_LARGE = 180
 
 // Create a new ImageDiff object
 func NewImageDiff() *ImageDiff {
@@ -217,6 +219,22 @@ func (diff *ImageDiff) ClearData() {
 	diff.diff_gif_path = ""
 }
 
+// A better replacement for the cleanup process,only remove the temporary files only
+func (diff *ImageDiff) ClearTempFile() {
+
+	// Remove the temporary files
+	if strings.Contains(diff.processed_image1, "temp_") {
+		os.Remove(diff.processed_image1)
+	}
+
+	if strings.Contains(diff.processed_image2, "temp_") {
+		os.Remove(diff.processed_image2)
+	}
+
+	os.Remove(diff.diff_jpg_path)
+	os.Remove(diff.diff_gif_path)
+}
+
 func (diff *ImageDiff) Terminate() {
 	os.RemoveAll(diff.diff_directory)
 }
@@ -279,13 +297,17 @@ func (diff *ImageDiff) output_filename_gif(processed_image1_path, processed_imag
 	temp_image2 := filepath.Join(diff.diff_directory, "filename2.jpg")
 
 	// Check suitable size for filename font
-	fmt.Println("Size:", diff.processed_size.Dx())
+
 	fontsize := FILENAME_FONTSIZE_MEDIUM
 
-	if diff.processed_size.Dx() < 1500 {
+	if diff.processed_size.Dx() < 1000 {
+		fontsize = FILENAME_FONTSIZE_EXTRA_SMALL
+	} else if diff.processed_size.Dx() < 1500 {
 		fontsize = FILENAME_FONTSIZE_SMALL
+	} else if diff.processed_size.Dx() > 2500 {
+		fontsize = FILENAME_FONTSIZE_LARGE
 	}
-	fmt.Println("Font Size:", fontsize)
+	fmt.Println("Size:", diff.processed_size.Dx(), "Font Size:", fontsize)
 
 	area_size := fontsize + 20
 

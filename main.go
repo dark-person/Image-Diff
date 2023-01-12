@@ -26,10 +26,10 @@ func main() {
 	queue := NewImagesQueueByFile("similar_data.txt")
 	skipped_item := NewImagesQueue()
 
-	for i := 1; i <= 3; i++ {
-		path1, path2 := Test_Set(i)
-		queue.Add(path1, path2)
-	}
+	// for i := 1; i <= 3; i++ {
+	// 	path1, path2 := Test_Set(i)
+	// 	queue.Add(path1, path2)
+	// }
 
 	if queue.Empty() {
 		os.Exit(135)
@@ -51,9 +51,12 @@ func main() {
 	diff_check.Diff()
 
 	window := NewGuiWindow()
-	window.Update(NewGuiData(diff_check.GetInfo()))
+	window.Update(NewGuiData(diff_check.GetInfo()), queue.Capacity())
 
-	update := func() (data GuiData) {
+	update := func() (data GuiData, remain int) {
+
+		diff_check.ClearTempFile()
+
 		current_index++
 		fmt.Println("Index: ", current_index)
 
@@ -64,32 +67,32 @@ func main() {
 		// fmt.Println("Update Callback 1: {", v1, v2, v3, v4, v5, v6, v7, v8, "}")
 		// fmt.Printf("Update Callback2 : %v\n", NewGuiData(diff_check.GetInfo()))
 
-		return NewGuiData(diff_check.GetInfo())
+		return NewGuiData(diff_check.GetInfo()), queue.Capacity() - current_index
 	}
 
-	window.Next_Ontapped = func(perform_update bool) (data GuiData) {
+	window.Next_Ontapped = func(perform_update bool) (data GuiData, remain int) {
 		skipped_item.Add(queue.Get(current_index))
 		if perform_update {
-			data = update()
-			return data
+			data, remain = update()
+			return data, remain
 		} else {
-			return data
+			return data, queue.Capacity() - current_index
 		}
 	}
 
-	window.Same_Ontapped = func() (data GuiData) {
+	window.Same_Ontapped = func() (data GuiData, remain int) {
 		_, path2 := queue.Get(current_index)
 		//os.Remove(path1)
 		os.Remove(path2)
 
-		data = update()
-		return data
+		data, remain = update()
+		return data, remain
 	}
 
-	window.Different_Ontapped = func() (data GuiData) {
-		data = update()
+	window.Different_Ontapped = func() (data GuiData, remain int) {
+		data, remain = update()
 		// fmt.Printf("Different Callback : %s\n", data)
-		return data
+		return data, remain
 	}
 
 	window.IsLastItem = func() bool {
@@ -101,7 +104,7 @@ func main() {
 	// Cleanup
 	skipped_item.Concat(queue, current_index)
 
-	fmt.Println("Skipped:", skipped_item)
+	//fmt.Println("Skipped:", skipped_item)
 
 	data_file, data_err := os.OpenFile("similar_data.txt", os.O_RDWR|os.O_CREATE, 0755)
 	if data_err != nil {

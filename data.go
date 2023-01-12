@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -103,17 +102,18 @@ func NewImagesQueueByFile(filepath string) *ImagesQueue {
 	if err != nil {
 		log.Printf("Could not open file: %v\n", err)
 	}
+	defer file.Close()
+
 	fileScanner := bufio.NewScanner(file)
 	fileScanner.Split(bufio.ScanLines)
 
 	for fileScanner.Scan() {
 		if strings.Contains(fileScanner.Text(), "?") {
-			paths := strings.SplitN(fileScanner.Text(), " ??? ", 2)
-			queue.Add(paths[0], paths[1])
+			path1, path2, check := strings.Cut(fileScanner.Text(), " ??? ")
+			if check { // Prevent Invalid record
+				queue.Add(path1, path2)
+			}
 		}
-	}
-	if err = file.Close(); err != nil {
-		fmt.Printf("Could not close the file due to this %s error \n", err)
 	}
 
 	return queue
