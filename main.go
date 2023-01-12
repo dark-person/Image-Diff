@@ -54,9 +54,7 @@ func main() {
 	window.Update(NewGuiData(diff_check.GetInfo()), queue.Capacity())
 
 	update := func() (data GuiData, remain int) {
-
 		diff_check.ClearTempFile()
-
 		current_index++
 		fmt.Println("Index: ", current_index)
 
@@ -97,6 +95,10 @@ func main() {
 
 	window.IsLastItem = func() bool {
 		return current_index >= queue.Capacity()-1
+	}
+
+	window.Cleanup_Handler = func() {
+		//diff_check.ClearTempFile()
 	}
 
 	window.ShowAndRun()

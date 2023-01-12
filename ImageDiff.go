@@ -16,6 +16,8 @@ import (
 )
 
 type ImageDiff struct {
+	sync.Mutex
+
 	first_image_path  string // Relative path to first image
 	second_image_path string // Relative path to second image
 
@@ -28,6 +30,8 @@ type ImageDiff struct {
 
 	initialized    bool   // Security lock to check object validity
 	diff_directory string // Directory that store temporary image
+
+	retry_sequence []string // Sequence of unable to deleted file
 }
 
 var Err_ImageDiff_Not_Initialized = fmt.Errorf("imageDiff not initalised yet")
@@ -55,6 +59,8 @@ func NewImageDiff() *ImageDiff {
 
 		initialized:    false,
 		diff_directory: "",
+
+		retry_sequence: make([]string, 0),
 	}
 }
 
@@ -222,17 +228,47 @@ func (diff *ImageDiff) ClearData() {
 // A better replacement for the cleanup process,only remove the temporary files only
 func (diff *ImageDiff) ClearTempFile() {
 
+	diff.Lock()
+	new_sequence := make([]string, 0)
+
+	// Retry sequence
+	for _, item := range diff.retry_sequence {
+		err := os.Remove(item)
+		if err != nil {
+			new_sequence = append(new_sequence, item)
+		}
+	}
+
 	// Remove the temporary files
 	if strings.Contains(diff.processed_image1, "temp_") {
-		os.Remove(diff.processed_image1)
+		err := os.Remove(diff.processed_image1)
+		if err != nil {
+			new_sequence = append(new_sequence, diff.processed_image1)
+		}
 	}
 
 	if strings.Contains(diff.processed_image2, "temp_") {
-		os.Remove(diff.processed_image2)
+		err := os.Remove(diff.processed_image2)
+		if err != nil {
+			new_sequence = append(new_sequence, diff.processed_image2)
+		}
 	}
 
-	os.Remove(diff.diff_jpg_path)
-	os.Remove(diff.diff_gif_path)
+	err_jpg := os.Remove(diff.diff_jpg_path)
+	if err_jpg != nil {
+		fmt.Println("Error when clear temp jpg:", err_jpg)
+		new_sequence = append(new_sequence, diff.diff_jpg_path)
+	}
+
+	err_gif := os.Remove(diff.diff_gif_path)
+	if err_gif != nil {
+		fmt.Println("Error when clear temp gif:", err_gif)
+		new_sequence = append(new_sequence, diff.diff_gif_path)
+	}
+
+	diff.retry_sequence = new_sequence
+
+	diff.Unlock()
 }
 
 func (diff *ImageDiff) Terminate() {
@@ -326,7 +362,7 @@ func (diff *ImageDiff) output_filename_gif(processed_image1_path, processed_imag
 	//fmt.Println(string(out2))
 
 	// Run command
-	cmd := exec.Command("magick", "-delay", "100", temp_image1, temp_image2, "-loop", "0", output_image_path)
+	cmd := exec.Command("magick", "-delay", "50", temp_image1, temp_image2, "-loop", "0", output_image_path)
 
 	log.Debugf("Start Generating filename gif..\n")
 	out, err := cmd.Output()
@@ -335,9 +371,17 @@ func (diff *ImageDiff) output_filename_gif(processed_image1_path, processed_imag
 	}
 	log.Tracef(string(out) + "\n")
 
+	// // Compress gif
+	// cmd = exec.Command("magick", "mogrify", "-layers", "optimize", "-fuzz", "5%", output_image_path)
+	// out, err = cmd.Output()
+	// if err != nil {
+	// 	return fmt.Errorf("command of compress gif failed: %v", err)
+	// }
+	// log.Tracef(string(out) + "\n")
+
 	log.Debugf("Command run successfully.\n")
-	go os.Remove(temp_image1)
-	go os.Remove(temp_image2)
+	os.Remove(temp_image1)
+	os.Remove(temp_image2)
 	return nil
 }
 

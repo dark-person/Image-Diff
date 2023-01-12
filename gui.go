@@ -49,6 +49,8 @@ type GuiWindow struct {
 
 	Exception_Handler func(message string)
 	Try_Next_button   *widget.Button // Button when error appear and let user to select next image
+
+	Cleanup_Handler func()
 }
 
 func NewGuiWindow() *GuiWindow {
@@ -239,11 +241,15 @@ func NewGuiWindow() *GuiWindow {
 		same_image_button, different_image_button, next_button, button_area, remaining_label,
 		loading_dialog, exit_dialog,
 		empty_data2, empty_data, empty_data, empty_bool,
-		exception_handler, try_next_button}
+		exception_handler, try_next_button,
+		func() {}}
 }
 
 // Update the gui by GuiData, also set up handler and refresh container
 func (window *GuiWindow) Update(data GuiData, remain_count int) {
+	window.compare_animated_container.Remove(window.compare_gif_canvas) // Remove the gif only // Prevent Usage on old GIF
+	window.Cleanup_Handler()                                            // Cleanup before update
+
 	window.remaining_label.SetText("Remaining: " + strconv.Itoa(remain_count))
 
 	window.image1_canvas.File = data.Image1_filepath
@@ -258,7 +264,6 @@ func (window *GuiWindow) Update(data GuiData, remain_count int) {
 	window.compare_jpg_canvas.File = data.Compare_jpg_filepath
 
 	// Gif image reset
-	window.compare_animated_container.Remove(window.compare_gif_canvas) // Remove the gif only
 	new_gif_canvas, err := widgetx.NewAnimatedGif(storage.NewFileURI(data.Compare_gif_filepath))
 
 	window.compare_animated_container.Add(new_gif_canvas)
