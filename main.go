@@ -104,8 +104,7 @@ func main() {
 	// Cleanup
 	skipped_item.Concat(queue, current_index)
 
-	//fmt.Println("Skipped:", skipped_item)
-
+	os.Remove("similar_data.txt") // Remove file to prevent overwriting
 	data_file, data_err := os.OpenFile("similar_data.txt", os.O_RDWR|os.O_CREATE, 0755)
 	if data_err != nil {
 		log.Errorf("[OutputReport] ERROR: Cannot Open Data File.\n")
@@ -113,7 +112,12 @@ func main() {
 	}
 	defer data_file.Close()
 
+	fmt.Println("Capacity:", skipped_item.Capacity(), "Original:", queue.Capacity())
+
 	for i := 0; i < skipped_item.Capacity(); i++ {
-		data_file.WriteString(fmt.Sprintf("%s ??? %s\n", skipped_item.image1_path[i], skipped_item.image2_path[i]))
+		_, err := data_file.WriteString(fmt.Sprintf("%s ??? %s\n", skipped_item.image1_path[i], skipped_item.image2_path[i]))
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 }
