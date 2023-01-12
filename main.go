@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func Test_Set(set_number int) (string, string) {
@@ -21,7 +23,7 @@ func Test_Set(set_number int) (string, string) {
 func main() {
 	fmt.Println("Hello world!")
 
-	queue := NewImagesQueue()
+	queue := NewImagesQueueByFile("similar_data.txt")
 	skipped_item := NewImagesQueue()
 
 	for i := 1; i <= 3; i++ {
@@ -97,5 +99,18 @@ func main() {
 	window.ShowAndRun()
 
 	// Cleanup
+	skipped_item.Concat(queue, current_index)
+
 	fmt.Println("Skipped:", skipped_item)
+
+	data_file, data_err := os.OpenFile("similar_data.txt", os.O_RDWR|os.O_CREATE, 0755)
+	if data_err != nil {
+		log.Errorf("[OutputReport] ERROR: Cannot Open Data File.\n")
+		log.Errorf("[OutputReport] ------ Error   : %s\n", data_err)
+	}
+	defer data_file.Close()
+
+	for i := 0; i < skipped_item.Capacity(); i++ {
+		data_file.WriteString(fmt.Sprintf("%s ??? %s\n", skipped_item.image1_path[i], skipped_item.image2_path[i]))
+	}
 }

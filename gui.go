@@ -45,6 +45,7 @@ type GuiWindow struct {
 	IsLastItem         func() bool
 
 	Exception_Handler func(message string)
+	Try_Next_button   *widget.Button // Button when error appear and let user to select next image
 }
 
 func NewGuiWindow() *GuiWindow {
@@ -183,6 +184,11 @@ func NewGuiWindow() *GuiWindow {
 		w.Close()
 	})
 
+	try_next_button := widget.NewButton("Try Next", func() {
+
+	})
+	try_next_button.Importance = widget.WarningImportance
+
 	// Set up error when exception
 	exception_handler := func(message string) {
 		fmt.Println("Critial Error Occur.")
@@ -196,6 +202,7 @@ func NewGuiWindow() *GuiWindow {
 					widget.NewButton("Close", func() {
 						w.Close()
 					}),
+					try_next_button,
 				)),
 			),
 		))
@@ -223,7 +230,7 @@ func NewGuiWindow() *GuiWindow {
 		same_image_button, different_image_button, next_button, button_area,
 		loading_dialog, exit_dialog,
 		empty_data2, empty_data, empty_data, empty_bool,
-		exception_handler}
+		exception_handler, try_next_button}
 }
 
 // Update the gui by GuiData, also set up handler and refresh container
@@ -248,8 +255,17 @@ func (window *GuiWindow) Update(data GuiData) {
 		new_gif_canvas.Start() //Only Start animation if not error
 	} else {
 		log.Printf("Error: %v, target: %s\n", err, data)
+		original_content := window.window.Content()
+		window.Try_Next_button.OnTapped = func() {
+			window.loading_dialog.Show()
+			window.window.SetContent(original_content) // Recover the window structure
+			data := window.Different_Ontapped()        // Use Different to not remain record to skipped item
+			window.Update(data)
+			window.loading_dialog.Hide()
+		}
 		window.Exception_Handler(
 			fmt.Sprintf("%v.\n\nImage Error: %s\n\nImage Original:\n%s, \n%s\n", err, data.Compare_gif_filepath, data.Image1_filepath, data.Image2_filepath))
+
 	}
 	window.compare_gif_canvas = new_gif_canvas
 
