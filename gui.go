@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"path/filepath"
 	"strconv"
 
@@ -17,6 +16,7 @@ import (
 	_ "image/gif"
 
 	widgetx "fyne.io/x/fyne/widget"
+	log "github.com/sirupsen/logrus"
 )
 
 var Default_Image_Size = fyne.NewSize(600, 600)
@@ -40,7 +40,7 @@ type GuiWindow struct {
 	remaining_label  *widget.Label
 
 	loading_dialog *dialog.ProgressInfiniteDialog
-	exit_dialog    dialog.Dialog
+	exit_content   fyne.CanvasObject
 
 	Next_Ontapped      func(perform_update bool) (data GuiData, remain int)
 	Same_Ontapped      func() (data GuiData, remain int)
@@ -138,6 +138,7 @@ func NewGuiWindow() *GuiWindow {
 	remaining_label := widget.NewLabel("Remaining: ")
 
 	close_program_button := widget.NewButton("Close Program", func() {
+		w.SetContent(widget.NewLabel("Closing.."))
 		w.Close()
 	})
 
@@ -188,12 +189,16 @@ func NewGuiWindow() *GuiWindow {
 	loading_dialog := dialog.NewProgressInfinite("Loading", "Please wait until next image is loaded", w)
 	loading_dialog.Hide()
 
-	exit_dialog := dialog.NewInformation("Exiting", "That is Last Image. Program will terminate.", w)
-	exit_dialog.Hide()
-
-	exit_dialog.SetOnClosed(func() {
-		w.Close()
-	})
+	exit_content := container.NewCenter(
+		container.NewVBox(
+			widget.NewLabel("Exiting..."),
+			widget.NewLabel(""),
+			widget.NewLabel("That is Last Image. Program will terminate."),
+			widget.NewButton("OK", func() {
+				w.Close()
+			}),
+		),
+	)
 
 	try_next_button := widget.NewButton("Try Next", func() {
 
@@ -211,6 +216,7 @@ func NewGuiWindow() *GuiWindow {
 						w.Clipboard().SetContent(message)
 					}),
 					widget.NewButton("Close", func() {
+						w.SetContent(widget.NewLabel("Closing.."))
 						w.Close()
 					}),
 					try_next_button,
@@ -239,7 +245,7 @@ func NewGuiWindow() *GuiWindow {
 	return &GuiWindow{w, tabs,
 		image1_fileinfo, image2_fileinfo, image1_canvas, image2_canvas, compare_jpg_canvas, animated_gif, button_restart_animate, cc,
 		same_image_button, different_image_button, next_button, button_area, remaining_label,
-		loading_dialog, exit_dialog,
+		loading_dialog, exit_content,
 		empty_data2, empty_data, empty_data, empty_bool,
 		exception_handler, try_next_button,
 		func() {}}
@@ -247,6 +253,15 @@ func NewGuiWindow() *GuiWindow {
 
 // Update the gui by GuiData, also set up handler and refresh container
 func (window *GuiWindow) Update(data GuiData, remain_count int) {
+	log.Tracef("[GUI] Update, remain_count=%d\n", remain_count)
+	if remain_count < 0 {
+		log.Debugf("Current Index is out of range.\n")
+		window.window.SetContent(window.exit_content)
+		window.window.Resize(fyne.NewSize(200, 200))
+		window.window.CenterOnScreen()
+		return
+	}
+
 	window.compare_animated_container.Remove(window.compare_gif_canvas) // Remove the gif only // Prevent Usage on old GIF
 	window.Cleanup_Handler()                                            // Cleanup before update
 
@@ -270,7 +285,7 @@ func (window *GuiWindow) Update(data GuiData, remain_count int) {
 	if err == nil {
 		new_gif_canvas.Start() //Only Start animation if not error
 	} else {
-		log.Printf("Error: %v, target: %s\n", err, data)
+		log.Warnf("Error: %v, target: %s\n", err, data)
 		original_content := window.window.Content()
 		window.Try_Next_button.OnTapped = func() {
 			window.loading_dialog.Show()
@@ -334,18 +349,24 @@ func (window *GuiWindow) Update(data GuiData, remain_count int) {
 	if window.IsLastItem() {
 		window.next_button.OnTapped = func() {
 			window.Next_Ontapped(false)
-			window.exit_dialog.Show()
+			window.window.SetContent(window.exit_content)
+			window.window.Resize(fyne.NewSize(200, 200))
+			window.window.CenterOnScreen()
 		}
 		window.next_button.SetText("Close Program")
 
 		window.different_button.OnTapped = func() { //Overwirte orignial function to prevent error
-			window.exit_dialog.Show()
+			window.window.SetContent(window.exit_content)
+			window.window.Resize(fyne.NewSize(200, 200))
+			window.window.CenterOnScreen()
 		}
 
 		window.same_button.OnTapped = func() {
 			confirmCallback := func(confirm bool) {
 				if confirm {
-					window.exit_dialog.Show()
+					window.window.SetContent(window.exit_content)
+					window.window.Resize(fyne.NewSize(200, 200))
+					window.window.CenterOnScreen()
 				}
 			}
 

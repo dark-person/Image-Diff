@@ -102,10 +102,10 @@ func (diff *ImageDiff) SetImages(image1_path string, image2_path string) error {
 	second_file, err_open2 := os.Open(diff.second_image_path)
 
 	if err_open1 != nil {
-		log.Errorf("Error opening file 1\n", err_open1)
+		log.Errorf("Error opening file 1:%v\n", err_open1)
 		return err_open1
 	} else if err_open2 != nil {
-		log.Errorf("Error opening file 2\n", err_open2)
+		log.Errorf("Error opening file 2: %v\n", err_open2)
 		return err_open2
 	}
 
@@ -204,29 +204,9 @@ func (diff *ImageDiff) Diff() error {
 	return err
 }
 
-// Clear all image related data, allow the next comparison of other images
-func (diff *ImageDiff) ClearData() {
-
-	// Remove the temporary files
-	if strings.Contains(diff.processed_image1, "temp_") {
-		os.Remove(diff.processed_image1)
-	}
-
-	if strings.Contains(diff.processed_image2, "temp_") {
-		os.Remove(diff.processed_image2)
-	}
-
-	diff.first_image_path = ""
-	diff.second_image_path = ""
-	diff.processed_image1 = ""
-	diff.processed_image2 = ""
-	diff.processed_size = image.Rectangle{}
-	diff.diff_jpg_path = ""
-	diff.diff_gif_path = ""
-}
-
 // A better replacement for the cleanup process,only remove the temporary files only
-func (diff *ImageDiff) ClearTempFile() {
+// Return how many item is still not deleted
+func (diff *ImageDiff) ClearTempFile() int {
 
 	diff.Lock()
 	new_sequence := make([]string, 0)
@@ -234,7 +214,8 @@ func (diff *ImageDiff) ClearTempFile() {
 	// Retry sequence
 	for _, item := range diff.retry_sequence {
 		err := os.Remove(item)
-		if err != nil {
+		log.Warnf("Error when retrying delete %s: %v\n", item, err)
+		if err != nil && !strings.Contains(err.Error(), "The system cannot find the file specified") {
 			new_sequence = append(new_sequence, item)
 		}
 	}
@@ -242,14 +223,14 @@ func (diff *ImageDiff) ClearTempFile() {
 	// Remove the temporary files
 	if strings.Contains(diff.processed_image1, "temp_") {
 		err := os.Remove(diff.processed_image1)
-		if err != nil {
+		if err != nil && !strings.Contains(err.Error(), "The system cannot find the file specified") {
 			new_sequence = append(new_sequence, diff.processed_image1)
 		}
 	}
 
 	if strings.Contains(diff.processed_image2, "temp_") {
 		err := os.Remove(diff.processed_image2)
-		if err != nil {
+		if err != nil && !strings.Contains(err.Error(), "The system cannot find the file specified") {
 			new_sequence = append(new_sequence, diff.processed_image2)
 		}
 	}
@@ -257,22 +238,54 @@ func (diff *ImageDiff) ClearTempFile() {
 	err_jpg := os.Remove(diff.diff_jpg_path)
 	if err_jpg != nil {
 		fmt.Println("Error when clear temp jpg:", err_jpg)
-		new_sequence = append(new_sequence, diff.diff_jpg_path)
+		if !strings.Contains(err_jpg.Error(), "The system cannot find the file specified") {
+			new_sequence = append(new_sequence, diff.diff_jpg_path)
+		}
 	}
 
 	err_gif := os.Remove(diff.diff_gif_path)
 	if err_gif != nil {
 		fmt.Println("Error when clear temp gif:", err_gif)
-		new_sequence = append(new_sequence, diff.diff_gif_path)
+		if !strings.Contains(err_gif.Error(), "The system cannot find the file specified") {
+			new_sequence = append(new_sequence, diff.diff_gif_path)
+		}
 	}
 
 	diff.retry_sequence = new_sequence
-
+	fmt.Println("New sequence:", diff.retry_sequence)
 	diff.Unlock()
+
+	return len(diff.retry_sequence)
+}
+
+func (diff *ImageDiff) AddRetryQueue(retry_item string) {
+	diff.retry_sequence = append(diff.retry_sequence, retry_item)
+}
+
+func (diff *ImageDiff) GetRetryQueueCount() int {
+	return len(diff.retry_sequence)
 }
 
 func (diff *ImageDiff) Terminate() {
+	err_count := 0
 	os.RemoveAll(diff.diff_directory)
+
+	for _, item := range diff.retry_sequence {
+		err := os.Remove(item)
+		if err != nil {
+			log.Tracef("Terminate Check: %s\n", err.Error())
+		}
+
+		if err != nil && !IsErrorNotFound(err) {
+			err_count++
+		}
+	}
+
+	if err_count != 0 {
+		fmt.Println("Uncleared File count", len(diff.retry_sequence), ":", diff.retry_sequence)
+		time.Sleep(time.Millisecond * 1500) // Sleep 0.5s to prevent too many retry
+		diff.Terminate()
+	}
 }
 
 // Get the related path of diff image
@@ -280,7 +293,6 @@ func (diff *ImageDiff) GetDiffJpg() (string, error) {
 	if !diff.initialized {
 		return "", Err_ImageDiff_Not_Initialized
 	}
-
 	return diff.diff_jpg_path, nil
 }
 
@@ -289,9 +301,7 @@ func (diff *ImageDiff) GetDiffGif() (string, error) {
 	if !diff.initialized {
 		return "", Err_ImageDiff_Not_Initialized
 	}
-
 	return diff.diff_gif_path, nil
-
 }
 
 // Get all needed information for data storing/processing
@@ -343,7 +353,7 @@ func (diff *ImageDiff) output_filename_gif(processed_image1_path, processed_imag
 	} else if diff.processed_size.Dx() > 2500 {
 		fontsize = FILENAME_FONTSIZE_LARGE
 	}
-	fmt.Println("Size:", diff.processed_size.Dx(), "Font Size:", fontsize)
+	log.Tracef("Size: %d, Font Size: %d\n", diff.processed_size.Dx(), fontsize)
 
 	area_size := fontsize + 20
 
@@ -352,14 +362,14 @@ func (diff *ImageDiff) output_filename_gif(processed_image1_path, processed_imag
 		"-size", strconv.Itoa(diff.processed_size.Dx())+"x"+strconv.Itoa(area_size)+"!",
 		"label:"+strings.TrimPrefix(filepath.Base(processed_image1_path), "temp_"), "+swap", "-gravity", "Center", "-append",
 		temp_image1).Output()
-	//fmt.Println(string(out1))
+	//log.Tracef(string(out1)+"\n")
 
 	exec.Command("magick", processed_image2_path,
 		"-background", "black", "-fill", "white", "-pointsize", strconv.Itoa(fontsize),
 		"-size", strconv.Itoa(diff.processed_size.Dx())+"x"+strconv.Itoa(area_size)+"!",
 		"label:"+strings.TrimPrefix(filepath.Base(processed_image2_path), "temp_"), "+swap", "-gravity", "Center", "-append",
 		temp_image2).Output()
-	//fmt.Println(string(out2))
+	//log.Tracef(string(out2)+"\n")
 
 	// Run command
 	cmd := exec.Command("magick", "-delay", "50", temp_image1, temp_image2, "-loop", "0", output_image_path)
@@ -391,14 +401,18 @@ func output_diff_jpg(first_image_path, second_image_path string, output_image_pa
 	cmd := exec.Command("magick", "composite", first_image_path, second_image_path, "-compose",
 		"difference", output_image_path)
 
-	log.Debugf("Start Generating image..")
+	log.Debugf("Start Generating image..\n")
 	out, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("fail to generate diff jpg: %v", err)
 	}
 	log.Tracef(string(out) + "\n")
 
-	log.Debugf("Command run successfully.")
+	log.Debugf("Command run successfully.\n")
 
 	return nil
+}
+
+func IsErrorNotFound(err error) bool {
+	return strings.Contains(err.Error(), "The system cannot find the file specified") || strings.Contains(err.Error(), "The system cannot find the path specified")
 }

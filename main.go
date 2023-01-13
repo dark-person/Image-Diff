@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -21,6 +22,9 @@ func Test_Set(set_number int) (string, string) {
 }
 
 func main() {
+	logger := prepare_logger("temp.log")
+	defer logger_close(logger)
+
 	fmt.Println("Hello world!")
 
 	queue := NewImagesQueueByFile("similar_data.txt")
@@ -54,9 +58,14 @@ func main() {
 	window.Update(NewGuiData(diff_check.GetInfo()), queue.Capacity())
 
 	update := func() (data GuiData, remain int) {
-		diff_check.ClearTempFile()
+		retry_count := diff_check.ClearTempFile()
 		current_index++
-		fmt.Println("Index: ", current_index)
+		log.Debugf("Index: %d, Retry Pending: %d\n", current_index, retry_count)
+
+		// Prevent Index out of range
+		if current_index > queue.Capacity()-1 {
+			return NewGuiData("", "", "", "", "", "", "", ""), -1
+		}
 
 		diff_check.SetImages(queue.Get(current_index))
 		diff_check.Diff()
@@ -80,8 +89,13 @@ func main() {
 
 	window.Same_Ontapped = func() (data GuiData, remain int) {
 		_, path2 := queue.Get(current_index)
-		//os.Remove(path1)
-		os.Remove(path2)
+		err := os.Remove(path2)
+		if err != nil {
+			log.Warnf("Error when removing path2: %v\n", err)
+			if !strings.Contains(err.Error(), "cannot find the file specified") {
+				diff_check.AddRetryQueue(path2)
+			}
+		}
 
 		data, remain = update()
 		return data, remain
@@ -104,6 +118,7 @@ func main() {
 	window.ShowAndRun()
 
 	// Cleanup
+	diff_check.ClearTempFile()
 	skipped_item.Concat(queue, current_index)
 
 	os.Remove("similar_data.txt") // Remove file to prevent overwriting
@@ -119,7 +134,7 @@ func main() {
 	for i := 0; i < skipped_item.Capacity(); i++ {
 		_, err := data_file.WriteString(fmt.Sprintf("%s ??? %s\n", skipped_item.image1_path[i], skipped_item.image2_path[i]))
 		if err != nil {
-			fmt.Println(err)
+			log.Errorf("Error when writing string to data file: %v\n", err)
 		}
 	}
 }

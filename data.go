@@ -50,7 +50,12 @@ func (queue *ImagesQueue) Capacity() int {
 }
 
 func (queue *ImagesQueue) Get(index int) (path1, path2 string) {
-	return queue.image1_path[index], queue.image2_path[index]
+	if index < queue.Capacity() {
+		return queue.image1_path[index], queue.image2_path[index]
+	} else {
+		return "", ""
+	}
+
 }
 
 func (queue *ImagesQueue) Add(path1, path2 string) {
