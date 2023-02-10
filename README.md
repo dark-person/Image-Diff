@@ -4,6 +4,8 @@ An Application for finding image difference.
 
 Graphic User Interface is included (by `fyne.io`).
 
+![ezgif com-optimize](https://user-images.githubusercontent.com/66205094/218022360-b63245c0-35a0-40f8-8be9-375207343616.gif)
+
 ## Graphic User Interface
 
 This app will compare the image with three different aspect:
