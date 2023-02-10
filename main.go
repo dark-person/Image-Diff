@@ -8,19 +8,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func Test_Set(set_number int) (string, string) {
-	switch set_number {
-	case 1:
-		return "test_set\\blue gk_1672650631.png", "test_set\\blue gk_1672650653.png"
-	case 2:
-		return "test_set\\an yasuri_1672722083_faceleft.png", "test_set\\an yasuri_1672922692_faceright.jpg"
-	case 3:
-		return "test_set\\akie (44265104)_1672682033.png", "test_set\\akie (44265104)_1673037743.jpg"
-	}
-	return "", ""
-
-}
-
 func main() {
 	logger := prepare_logger("temp.log")
 	defer logger_close(logger)
@@ -29,11 +16,6 @@ func main() {
 
 	queue := NewImagesQueueByFile("similar_data.txt")
 	skipped_item := NewImagesQueue()
-
-	// for i := 1; i <= 3; i++ {
-	// 	path1, path2 := Test_Set(i)
-	// 	queue.Add(path1, path2)
-	// }
 
 	if queue.Empty() {
 		os.Exit(135)
